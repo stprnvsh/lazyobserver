@@ -1,0 +1,27 @@
+{
+  "name": "lazyobserver",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "lazyobserver — local-first observability, memory and reporting for Claude Code work",
+  "bin": {
+    "lazyobserver": "./dist/index.js",
+    "lzo": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@lazyobserver/core": "*",
+    "@lazyobserver/daemon": "*",
+    "@lazyobserver/mcp": "*",
+    "commander": "^13.1.0",
+    "picocolors": "^1.1.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.0",
+    "vitest": "^3.1.0"
+  }
+}
