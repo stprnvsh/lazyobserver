@@ -243,15 +243,28 @@ export function renderHtml(r: DayReport): string {
     s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const t = r.totals;
   return `<!doctype html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>lazyobserver — ${r.date}</title>
 <style>
-body{font:14px/1.5 -apple-system,system-ui,sans-serif;max-width:880px;margin:2rem auto;padding:0 1rem;color:#1a2233;background:#fafbfc}
-h1{font-size:1.4rem} .cards{display:flex;gap:12px;flex-wrap:wrap;margin:1rem 0}
-.card{background:#fff;border:1px solid #e3e8ee;border-radius:8px;padding:12px 16px;min-width:130px}
-.card b{display:block;font-size:1.3rem} .card span{color:#5b6b7f;font-size:.8rem}
-pre{white-space:pre-wrap;background:#fff;border:1px solid #e3e8ee;border-radius:8px;padding:16px}
+:root{--bg:#0a0d12;--surface:#10151d;--surface2:#141b26;--line:#1d2634;--text:#e2e8f0;
+  --dim:#8294a7;--faint:#5b6b7e;--acc:#2dd4a7;--mono:ui-monospace,'SF Mono',Menlo,monospace}
+*{box-sizing:border-box}html{color-scheme:dark}
+body{font:13.5px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;max-width:920px;
+  margin:0 auto;padding:36px 24px 80px;color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased}
+.brand{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:650;color:var(--dim);margin-bottom:6px}
+.brand .dot{width:8px;height:8px;border-radius:50%;background:var(--acc);box-shadow:0 0 8px var(--acc)}
+.brand em{font-style:normal;color:var(--acc)}
+h1{font-size:20px;font-weight:650;letter-spacing:-.3px;margin:0 0 20px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:0 0 22px}
+.card{background:linear-gradient(180deg,var(--surface2),var(--surface));border:1px solid var(--line);
+  border-radius:12px;padding:14px 16px}
+.card b{display:block;font-size:22px;font-weight:640;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
+.card span{color:var(--dim);font-size:10.5px;text-transform:uppercase;letter-spacing:.7px;font-weight:540}
+pre{white-space:pre-wrap;background:var(--surface);border:1px solid var(--line);border-radius:12px;
+  padding:20px 22px;font:12px/1.65 var(--mono);color:var(--text)}
 </style></head><body>
-<h1>Daily report — ${r.date}</h1>
+<div class="brand"><span class="dot"></span>lazy<em>observer</em> · daily report</div>
+<h1>${r.date}</h1>
 <div class="cards">
 <div class="card"><b>${t.sessions}</b><span>sessions (${t.minutes}m)</span></div>
 <div class="card"><b>${r.tasks.doneToday.length}</b><span>tasks done today</span></div>

@@ -21,6 +21,9 @@ export interface ParsedMessage {
   role: "user" | "assistant" | "thinking";
   text: string;
   blockIx: number;
+  /** true for MID-TURN prompts (queued while the agent worked) — these fire
+   * NO UserPromptSubmit hook, so the tailer synthesizes their prompt event */
+  queuedPrompt?: boolean;
 }
 
 export interface ParsedLineMeta {
@@ -52,10 +55,56 @@ export function parseTranscriptLine(line: string): ParsedLine {
     return empty;
   }
   const type = d.type;
-  if (type !== "user" && type !== "assistant") return empty;
+  if (type !== "user" && type !== "assistant" && type !== "attachment")
+    return empty;
 
   const sessionId = typeof d.sessionId === "string" ? d.sessionId : "";
   if (!sessionId) return empty;
+
+  // Mid-turn user prompts land as attachment lines (attachment.type =
+  // "queued_command" with prompt blocks) — verified live 2026-07-10; they
+  // fire NO hook, so the transcript is their ONLY capture path.
+  if (type === "attachment") {
+    const att = d.attachment as
+      | { type?: string; prompt?: unknown }
+      | undefined;
+    if (att?.type !== "queued_command" || !Array.isArray(att.prompt))
+      return empty;
+    const ts0 = typeof d.timestamp === "string" ? Date.parse(d.timestamp) : NaN;
+    const uuid0 = typeof d.uuid === "string" ? d.uuid : "";
+    if (!uuid0) return empty;
+    const messages: ParsedMessage[] = [];
+    att.prompt.forEach((block, ix) => {
+      if (
+        block &&
+        typeof block === "object" &&
+        (block as { type?: string }).type === "text" &&
+        typeof (block as { text?: string }).text === "string"
+      ) {
+        const text = (block as { text: string }).text.trim();
+        if (text)
+          messages.push({
+            uuid: uuid0,
+            sessionId,
+            ts: Number.isFinite(ts0) ? ts0 : Date.now(),
+            role: "user",
+            text,
+            blockIx: ix,
+            queuedPrompt: true,
+          });
+      }
+    });
+    return {
+      messages,
+      meta: {
+        sessionId,
+        cwd: typeof d.cwd === "string" ? d.cwd : undefined,
+        gitBranch: typeof d.gitBranch === "string" ? d.gitBranch : undefined,
+        surface: surfaceFromEntrypoint(d.entrypoint),
+        ts: Number.isFinite(ts0) ? ts0 : undefined,
+      },
+    };
+  }
 
   const ts = typeof d.timestamp === "string" ? Date.parse(d.timestamp) : NaN;
   const message = (d.message ?? {}) as Record<string, unknown>;

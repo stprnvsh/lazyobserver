@@ -7,7 +7,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build -w @lazyobserver/core && npm run build -w @lazyobserver/daemon && npm run build -w @lazyobserver/mcp && npm run build -w lazyobserver",
+    "build": "npm run build -w @lazyobserver/core && npm run build -w @lazyobserver/daemon && npm run build -w @lazyobserver/mcp && npm run build -w lazyobserver && npm run build -w @lazyobserver/web",
     "test": "npm run build && npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck -w @lazyobserver/core && npm run typecheck -w @lazyobserver/daemon && npm run typecheck -w @lazyobserver/mcp && npm run typecheck -w lazyobserver"
   },

@@ -103,6 +103,41 @@ describe("parseTranscriptLine", () => {
     }
   });
 
+  it("captures MID-TURN queued prompts from attachment lines (they fire no hook)", () => {
+    // real shape verified live 2026-07-10: attachment.type = "queued_command"
+    const line = JSON.stringify({
+      ...base,
+      type: "attachment",
+      uuid: "att-uuid-1",
+      attachment: {
+        type: "queued_command",
+        commandMode: "prompt",
+        prompt: [{ type: "text", text: "can you please make the ui fully modern" }],
+        source_uuid: "src-1",
+        timestamp: base.timestamp,
+      },
+    });
+    const { messages, meta } = parseTranscriptLine(line);
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toMatchObject({
+      role: "user",
+      queuedPrompt: true,
+      text: "can you please make the ui fully modern",
+      uuid: "att-uuid-1",
+    });
+    expect(meta).toMatchObject({ cwd: base.cwd, surface: "vscode" });
+  });
+
+  it("ignores non-queued attachment lines (file snapshots etc.)", () => {
+    const line = JSON.stringify({
+      ...base,
+      type: "attachment",
+      uuid: "att-uuid-2",
+      attachment: { type: "file", path: "/x/y.py" },
+    });
+    expect(parseTranscriptLine(line).messages).toHaveLength(0);
+  });
+
   it("never throws on malformed input", () => {
     expect(parseTranscriptLine("not json {{{")).toEqual({ messages: [], meta: null });
     expect(parseTranscriptLine('{"type":"user"}')).toEqual({ messages: [], meta: null });
