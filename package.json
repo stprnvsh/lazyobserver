@@ -1,0 +1,17 @@
+{
+  "name": "lazyobserver-monorepo",
+  "private": true,
+  "version": "0.1.0",
+  "description": "lazyobserver — local-first observability, memory and reporting for Claude Code work",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build -w @lazyobserver/core && npm run build -w @lazyobserver/daemon && npm run build -w @lazyobserver/mcp && npm run build -w lazyobserver",
+    "test": "npm run build && npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck -w @lazyobserver/core && npm run typecheck -w @lazyobserver/daemon && npm run typecheck -w @lazyobserver/mcp && npm run typecheck -w lazyobserver"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
