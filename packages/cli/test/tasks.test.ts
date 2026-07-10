@@ -82,7 +82,7 @@ describe("ClickUp adapter", () => {
             url: "https://app.clickup.com/t/abc1",
             due_date: String(Date.parse("2026-07-11T12:00:00")),
             date_updated: "1783700000000",
-            assignees: [{ username: "pranav" }],
+            assignees: [{ username: "Pranav Sateesh" }, { username: "Sasan" }],
             list: { id: "L1", name: "Sprint 12" },
           },
         ],
@@ -108,7 +108,7 @@ describe("ClickUp adapter", () => {
       raw_status: "in progress",
       sprint: "Sprint 12",
       due: "2026-07-11",
-      assignee: "pranav",
+      assignee: "Pranav Sateesh, Sasan",
     });
   });
 
@@ -267,6 +267,36 @@ describe("GitHub adapter", () => {
     await adapter.complete("o/r#7", "done note");
     expect(ghCalls[0].slice(0, 2)).toEqual(["issue", "comment"]);
     expect(ghCalls[1].slice(0, 2)).toEqual(["issue", "close"]);
+  });
+});
+
+describe("assignee filtering (--mine / --assignee)", () => {
+  it("matches any listed assignee, case-insensitively", async () => {
+    const { taskMatchesAssignee } = await import("../src/lib/tasks/sync.js");
+    const t = { assignee: "Pranav Sateesh, Sasan" };
+    expect(taskMatchesAssignee(t, ["pranav sateesh"])).toBe(true);
+    expect(taskMatchesAssignee(t, ["sasan"])).toBe(true);
+    expect(taskMatchesAssignee(t, ["PRANAV"])).toBe(true); // substring of a name
+    expect(taskMatchesAssignee(t, ["daniel"])).toBe(false);
+    expect(taskMatchesAssignee(t, [""])).toBe(false); // empty needle never matches
+    expect(taskMatchesAssignee({ assignee: "" }, ["pranav"])).toBe(false);
+  });
+
+  it("ClickUp getMe returns the token owner for identity caching", async () => {
+    const fakeFetch: FetchFn = async (url) => ({
+      ok: true,
+      status: 200,
+      json: async () =>
+        url.endsWith("/user")
+          ? { user: { id: 106545730, username: "Pranav Sateesh", email: "p@t.com" } }
+          : {},
+    });
+    const adapter = new ClickUpAdapter("9", { fetchFn: fakeFetch, tokenFn: async () => "t" });
+    expect(await adapter.getMe()).toEqual({
+      id: "106545730",
+      username: "Pranav Sateesh",
+      email: "p@t.com",
+    });
   });
 });
 

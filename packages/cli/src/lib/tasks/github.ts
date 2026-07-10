@@ -45,7 +45,7 @@ export class GitHubAdapter {
       raw_status: i.state,
       sprint: i.milestone?.title ?? "",
       url: i.url,
-      assignee: i.assignees?.[0]?.login ?? "",
+      assignee: (i.assignees ?? []).map((a) => a.login).filter(Boolean).join(", "),
       due: "",
       updated_at: i.updatedAt ? Date.parse(i.updatedAt) : Date.now(),
     };

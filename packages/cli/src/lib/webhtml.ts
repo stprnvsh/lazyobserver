@@ -55,10 +55,14 @@ async function renderView(){exportLinks();main.innerHTML='loading…';
   <section><h2>Decisions</h2>\${r.decisions.map(d=>\`<div class="row"><span class="grow"><b>\${esc(d.choice)}</b> — \${esc(d.rationale)}</span><span class="tag">\${esc(d.proposed_by)}→\${esc(d.decided_by)}</span></div>\`).join('')||'<span class="dim">none</span>'}</section>
   <section><h2>Event timeline (\${ev.length})</h2>\${ev.slice(-200).map(e=>\`<div class="row"><span class="dim">\${t(e.ts)}</span><span class="tag \${e.actor==='user'?'in_progress':''}">\${esc(e.actor)}</span><span class="tag">\${esc(e.kind)}</span><span class="grow dim">\${(p=>esc((p.tool_input||{}).file_path||(p.tool_input||{}).command||p.prompt||''))(pj(e.payload))}</span>\${e.task_id?\`<span class="tag">\${esc(e.task_id)}</span>\`:''}</div>\`).join('')}</section>\`;
  } else if(view==='tasks'){const tasks=await api('/api/tasks');
-  const groups={in_progress:'In progress',review:'Review',blocked:'Blocked',todo:'To do',done:'Done'};
-  main.innerHTML=Object.entries(groups).map(([k,label])=>{const g=tasks.filter(x=>x.status===k);if(!g.length)return'';
-   return \`<section><h2>\${label} (\${g.length})</h2>\${g.map(x=>{const d=pj(x.description);
-    return \`<div class="row"><span class="tag \${x.status}">\${esc(x.source)}</span><span class="grow"><a href="\${esc(x.url)}" target="_blank">\${esc(x.source_id)}</a> \${esc(x.title)}</span><span class="dim">\${esc(x.sprint||'')} \${d.due?'due '+esc(d.due):''} \${x.branch?'· '+esc(x.branch):''}</span></div>\`}).join('')}</section>\`}).join('')||'<section><span class="dim">no tasks — lzo tasks sync</span></section>';
+  main.innerHTML='<input class="search" id="tf" placeholder="filter by assignee or title… (e.g. pranav)"><div id="tlist"></div>';
+  const draw=()=>{const q=($('#tf').value||'').toLowerCase();
+   const filtered=q?tasks.filter(x=>String(x.assignee||'').toLowerCase().includes(q)||String(x.title||'').toLowerCase().includes(q)):tasks;
+   const groups={in_progress:'In progress',review:'Review',blocked:'Blocked',todo:'To do',done:'Done'};
+   $('#tlist').innerHTML=Object.entries(groups).map(([k,label])=>{const g=filtered.filter(x=>x.status===k);if(!g.length)return'';
+    return \`<section><h2>\${label} (\${g.length})</h2>\${g.map(x=>{const d=pj(x.description);
+     return \`<div class="row"><span class="tag \${x.status}">\${esc(x.source)}</span><span class="grow"><a href="\${esc(x.url)}" target="_blank">\${esc(x.source_id)}</a> \${esc(x.title)}</span><span class="dim">\${x.assignee?'@'+esc(x.assignee)+' ':''}\${esc(x.sprint||'')} \${d.due?'due '+esc(d.due):''} \${x.branch?'· '+esc(x.branch):''}</span></div>\`}).join('')}</section>\`}).join('')||'<section><span class="dim">no matching tasks</span></section>'};
+  $('#tf').oninput=draw;draw();
  } else if(view==='journal'){const rows=await api('/api/journal?date='+dateEl.value);
   const doc=rows.find(x=>x.kind==='day_doc');const notes=rows.filter(x=>x.kind==='entry');
   main.innerHTML=\`<section><h2>Day document</h2>\${doc?\`<b>\${esc(doc.title)}</b><pre>\${esc(doc.body)}</pre>\`:'<span class="dim">none — run lzo eod</span>'}</section>

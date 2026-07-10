@@ -201,13 +201,22 @@ export async function journalNote(
 // tasks_today / task_update — the unified task list, agent-side
 // --------------------------------------------------------------------------
 
-export async function tasksToday(ctx: Ctx): Promise<string> {
+export async function tasksToday(
+  ctx: Ctx,
+  args: { assignee?: string } = {},
+): Promise<string> {
   const tbl = await ctx.store.table(TABLES.tasks);
-  const rows = (await tbl
+  let rows = (await tbl
     .query()
     .where("status != 'done'")
-    .limit(200)
+    .limit(500)
     .toArray()) as Record<string, unknown>[];
+  if (args.assignee) {
+    const needle = args.assignee.toLowerCase();
+    rows = rows.filter((r) =>
+      String(r.assignee ?? "").toLowerCase().includes(needle),
+    );
+  }
   if (rows.length === 0)
     return "No open tasks in the store (run `lzo tasks sync` to pull).";
   const lines = rows.map((r) => {

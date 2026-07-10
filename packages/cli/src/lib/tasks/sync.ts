@@ -122,6 +122,62 @@ export function rowToStoredTask(r: Record<string, unknown>): StoredTask {
   };
 }
 
+/** Case-insensitive assignee match against any needle (name/email/login). */
+export function taskMatchesAssignee(
+  task: Pick<StoredTask, "assignee">,
+  needles: string[],
+): boolean {
+  const hay = task.assignee.toLowerCase();
+  return needles.some((n) => n && hay.includes(n.toLowerCase()));
+}
+
+/**
+ * My identifiers across connected sources — ClickUp username/email + GitHub
+ * login. Resolved once via the APIs and cached into the workspace config so
+ * `--mine` stays instant afterwards.
+ */
+export async function resolveMyIdentifiers(
+  adapters: Adapters,
+): Promise<string[]> {
+  const { loadConfig: load, saveConfig } = await import("@lazyobserver/core");
+  const cfg = await load();
+  const ws = cfg.workspaces.find((w) => w.name === cfg.currentWorkspace);
+  const needles: string[] = [];
+  let changed = false;
+
+  if (ws?.connections.clickup) {
+    if (!ws.connections.clickup.me && adapters.clickup) {
+      try {
+        ws.connections.clickup.me = await adapters.clickup.getMe();
+        changed = true;
+      } catch {
+        /* offline — filter on what we have */
+      }
+    }
+    const me = ws.connections.clickup.me;
+    if (me) needles.push(me.username, me.email);
+  }
+  if (ws?.connections.github) {
+    if (!ws.connections.github.me) {
+      try {
+        const { defaultGhRunner } = await import("./github.js");
+        const out = await defaultGhRunner(["api", "user", "--jq", ".login"]);
+        const login = out.trim();
+        if (login) {
+          ws.connections.github.me = { login };
+          changed = true;
+        }
+      } catch {
+        /* gh unavailable */
+      }
+    }
+    if (ws.connections.github.me) needles.push(ws.connections.github.me.login);
+  }
+
+  if (changed) await saveConfig(cfg);
+  return needles.filter(Boolean);
+}
+
 export async function listTasks(store: Store): Promise<StoredTask[]> {
   const tbl = await store.table(TABLES.tasks);
   const rows = (await tbl.query().limit(5000).toArray()) as Record<

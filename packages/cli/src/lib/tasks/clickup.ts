@@ -205,9 +205,25 @@ export class ClickUpAdapter {
       raw_status: t.status?.status ?? "",
       sprint: sprintName ?? t.list?.name ?? t.folder?.name ?? "",
       url: t.url,
-      assignee: t.assignees?.[0]?.username ?? t.assignees?.[0]?.email ?? "",
+      // ALL assignees — assignee filters must match a task where I'm second
+      assignee: (t.assignees ?? [])
+        .map((a) => a.username ?? a.email ?? "")
+        .filter(Boolean)
+        .join(", "),
       due,
       updated_at: t.date_updated ? Number(t.date_updated) : Date.now(),
+    };
+  }
+
+  /** Who this token belongs to — cached into config for `--mine` filters. */
+  async getMe(): Promise<{ id: string; username: string; email: string }> {
+    const { user } = await this.get<{
+      user: { id: number | string; username?: string; email?: string };
+    }>("/user");
+    return {
+      id: String(user.id),
+      username: user.username ?? "",
+      email: user.email ?? "",
     };
   }
 

@@ -48,9 +48,19 @@ export const WorkspaceSchema = z.object({
            * and resolve the *current* sprint list (by date range) at sync time.
            */
           sprintFolderIds: z.array(z.string()).default([]),
+          /** who I am on ClickUp — resolved once, used by `--mine` filters */
+          me: z
+            .object({ id: z.string(), username: z.string(), email: z.string() })
+            .optional(),
         })
         .optional(),
-      github: z.object({ repos: z.array(z.string()) }).optional(),
+      github: z
+        .object({
+          repos: z.array(z.string()),
+          /** who I am on GitHub — resolved once, used by `--mine` filters */
+          me: z.object({ login: z.string() }).optional(),
+        })
+        .optional(),
     })
     .default({}),
 });

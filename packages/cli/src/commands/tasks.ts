@@ -25,6 +25,7 @@ import {
   listTasks,
   startTask,
   syncTasks,
+  taskMatchesAssignee,
 } from "../lib/tasks/sync.js";
 import { fail, heading, info, ok, warn } from "../ui.js";
 
@@ -199,38 +200,62 @@ export function tasksCommand(): Command {
     .command("list", { isDefault: true })
     .option("--all", "include done")
     .option("--today", "due today/overdue or in progress")
+    .option("--mine", "only tasks assigned to me (identity auto-resolved once)")
+    .option("--assignee <name>", "only tasks whose assignees match <name>")
     .description("show the unified task list")
-    .action(async (opts: { all?: boolean; today?: boolean }) => {
-      const store = await Store.open();
-      let tasks = await listTasks(store);
-      if (!opts.all) tasks = tasks.filter((t) => t.status !== "done");
-      if (opts.today) {
-        const today = localDate();
-        tasks = tasks.filter(
-          (t) =>
-            t.status === "in_progress" ||
-            (t.due !== "" && t.due <= today),
-        );
-      }
-      if (tasks.length === 0) {
-        info("no tasks — lzo tasks sync");
-        return;
-      }
-      heading(`tasks (${tasks.length})`);
-      for (const t of tasks) {
-        const extras = [
-          t.sprint && `sprint: ${t.sprint}`,
-          t.due && `due: ${t.due}`,
-          t.branch && `branch: ${t.branch}`,
-          t.pr_url && `PR: ${t.pr_url}`,
-        ]
-          .filter(Boolean)
-          .join(" · ");
-        info(
-          `${STATUS_ICON[t.status] ?? "·"} [${t.status}] ${t.source_id}  ${t.title}${extras ? `  (${extras})` : ""}`,
-        );
-      }
-    });
+    .action(
+      async (opts: {
+        all?: boolean;
+        today?: boolean;
+        mine?: boolean;
+        assignee?: string;
+      }) => {
+        const store = await Store.open();
+        let tasks = await listTasks(store);
+        if (!opts.all) tasks = tasks.filter((t) => t.status !== "done");
+        if (opts.today) {
+          const today = localDate();
+          tasks = tasks.filter(
+            (t) =>
+              t.status === "in_progress" ||
+              (t.due !== "" && t.due <= today),
+          );
+        }
+        let who = "";
+        if (opts.mine) {
+          const { resolveMyIdentifiers } = await import("../lib/tasks/sync.js");
+          const needles = await resolveMyIdentifiers(await buildAdapters());
+          if (needles.length === 0) {
+            info("couldn't resolve who you are — use --assignee <name>");
+            return;
+          }
+          tasks = tasks.filter((t) => taskMatchesAssignee(t, needles));
+          who = ` — mine (${needles[0]})`;
+        } else if (opts.assignee) {
+          tasks = tasks.filter((t) => taskMatchesAssignee(t, [opts.assignee!]));
+          who = ` — assignee ~ "${opts.assignee}"`;
+        }
+        if (tasks.length === 0) {
+          info(`no tasks${who} — lzo tasks sync`);
+          return;
+        }
+        heading(`tasks (${tasks.length})${who}`);
+        for (const t of tasks) {
+          const extras = [
+            t.sprint && `sprint: ${t.sprint}`,
+            t.due && `due: ${t.due}`,
+            t.assignee && `@${t.assignee}`,
+            t.branch && `branch: ${t.branch}`,
+            t.pr_url && `PR: ${t.pr_url}`,
+          ]
+            .filter(Boolean)
+            .join(" · ");
+          info(
+            `${STATUS_ICON[t.status] ?? "·"} [${t.status}] ${t.source_id}  ${t.title}${extras ? `  (${extras})` : ""}`,
+          );
+        }
+      },
+    );
 
   cmd
     .command("show <ref>")

@@ -101,9 +101,9 @@ async function main(): Promise<void> {
 
   server.tool(
     "tasks_today",
-    "List the user's open tasks (unified ClickUp + GitHub list). Use when asked what's on the plate / in the sprint.",
-    {},
-    async () => text(await tasksToday(ctx)),
+    "List open tasks (unified ClickUp + GitHub list). Use when asked what's on the plate / in the sprint. Filter by assignee name to see one person's tasks.",
+    { assignee: z.string().optional().describe("only tasks assigned to this name") },
+    async (args) => text(await tasksToday(ctx, args)),
   );
 
   server.tool(
