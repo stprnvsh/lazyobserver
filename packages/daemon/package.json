@@ -1,0 +1,39 @@
+{
+  "name": "@lazyobserver/daemon",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "lazyobserver-daemon": "./dist/index.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./capture": {
+      "types": "./dist/capture/install.d.ts",
+      "import": "./dist/capture/install.js",
+      "default": "./dist/capture/install.js"
+    },
+    "./memwrite": {
+      "types": "./dist/memwrite.d.ts",
+      "import": "./dist/memwrite.js",
+      "default": "./dist/memwrite.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@lazyobserver/core": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.0",
+    "vitest": "^3.1.0"
+  }
+}
