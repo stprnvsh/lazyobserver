@@ -172,6 +172,13 @@ describe("assembleReport", () => {
     expect(r.tasks.percentDone).toBe(50);
     // two distinct 10-min slices of tagged events
     expect(r.tasks.minutesByTask["github:o/r#7"]).toBe(20);
+    // "worked on" = tasks with attributed time (not the whole backlog)
+    expect(r.tasks.workedOn.map((t) => t.id)).toEqual(["github:o/r#7"]);
+    // per-sprint progress for the sprints the day touched
+    const sprintNames = r.tasks.sprints.map((s) => s.name).sort();
+    expect(sprintNames).toEqual(["Sprint 12", "v1"]);
+    const s12 = r.tasks.sprints.find((s) => s.name === "Sprint 12")!;
+    expect(s12).toMatchObject({ done: 1, total: 1, percent: 100 });
     expect(r.decisions[0].choice).toContain("vanilla");
     expect(r.dayDoc?.title).toBe("Built M4+M5");
   });
@@ -183,14 +190,19 @@ describe("renderers", () => {
     for (const needle of [
       "# Daily report — 2026-07-10",
       "**Sessions:** 1 (60 min)",
-      "Completed today",
+      "Completed today (1)",
       "✅ z9: Ship reports (PR: https://github.com/o/r/pull/9)",
-      "[in_progress] o/r#7: Add web dashboard — feat/web — ~20m today",
+      "Worked on today (1)",
+      "[in_progress] o/r#7: Add web dashboard — ~20m — feat/web",
+      "**Sprint 12**: 1/1 done (100%)",
+      "Open across sources: 1",
       "**vanilla self-contained page**",
       "## Day document",
     ]) {
       expect(md).toContain(needle);
     }
+    // the backlog must NOT be dumped — no "### Open (" section anymore
+    expect(md).not.toContain("### Open (");
   });
 
   it("html embeds the key numbers", async () => {

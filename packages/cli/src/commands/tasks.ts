@@ -55,12 +55,24 @@ export function connectCommand(): Command {
   cmd
     .command("clickup")
     .option("--team <id>", "ClickUp team (workspace) id — omit to auto-discover from the API key")
-    .option("--lists <ids>", "comma-separated list ids (else assigned-to-me)")
-    .option("--token <token>", "personal API key (omit to be prompted)")
+    .option("--lists <ids>", "extra list ids to sync in full (all assignees)")
+    .option(
+      "--sprint-folders <ids>",
+      "sprint FOLDER ids — the current sprint list is resolved by date at every sync",
+    )
+    .option("--browse", "print spaces / folders / lists (with ids) and exit")
+    .option("--token <token>", "personal API key (omit to be prompted / reuse keychain)")
     .description("connect ClickUp with just an API key (kept in the local keychain)")
     .action(
-      async (opts: { team?: string; lists?: string; token?: string }) => {
-        let token = opts.token;
+      async (opts: {
+        team?: string;
+        lists?: string;
+        sprintFolders?: string;
+        browse?: boolean;
+        token?: string;
+      }) => {
+        const { getSecret } = await import("@lazyobserver/core");
+        let token = opts.token ?? (await getSecret("clickup")) ?? undefined;
         if (!token) {
           const rl = createInterface({ input: process.stdin, output: process.stdout });
           token = (await rl.question("ClickUp personal API key: ")).trim();
@@ -68,8 +80,11 @@ export function connectCommand(): Command {
         }
         if (!token) throw new Error("no API key provided");
 
-        // resolve the team: explicit flag, or discover from the key
-        let teamId = opts.team;
+        // resolve the team: explicit flag, existing config, or discover from the key
+        const cfg = await loadConfig();
+        const ws = cfg.workspaces.find((w) => w.name === cfg.currentWorkspace);
+        if (!ws) throw new Error("no current workspace — lzo workspace use <name>");
+        let teamId = opts.team ?? ws.connections.clickup?.teamId;
         if (!teamId) {
           const { discoverClickUpTeams } = await import("../lib/tasks/clickup.js");
           const teams = await discoverClickUpTeams(token);
@@ -88,16 +103,49 @@ export function connectCommand(): Command {
           }
         }
 
+        if (opts.browse) {
+          const { discoverClickUpHierarchy } = await import("../lib/tasks/clickup.js");
+          const h = await discoverClickUpHierarchy(token, teamId);
+          const fmtDates = (l: { start_date?: string | null; due_date?: string | null }): string =>
+            l.start_date && l.due_date
+              ? `  [${new Date(Number(l.start_date)).toLocaleDateString("en-CA")} → ${new Date(Number(l.due_date)).toLocaleDateString("en-CA")}]`
+              : "";
+          for (const s of h.spaces) {
+            heading(`space ${s.id}  ${s.name}`);
+            for (const f of s.folders) {
+              const sprinty =
+                /sprint/i.test(f.name) || f.lists.some((l) => l.start_date && l.due_date);
+              info(`folder ${f.id}  ${f.name}${sprinty ? "   ← sprint folder?" : ""}`);
+              for (const l of f.lists)
+                info(`   list ${l.id}  ${l.name}${fmtDates(l)}  (${l.task_count ?? "?"} tasks)`);
+            }
+            for (const l of s.lists) info(`list ${l.id}  ${l.name}${fmtDates(l)}`);
+          }
+          info("");
+          info("connect a sprint: lzo connect clickup --sprint-folders <folderId>");
+          info("connect a list:   lzo connect clickup --lists <listId>");
+          return;
+        }
+
         await setSecret("clickup", token);
-        const cfg = await loadConfig();
-        const ws = cfg.workspaces.find((w) => w.name === cfg.currentWorkspace);
-        if (!ws) throw new Error("no current workspace — lzo workspace use <name>");
-        ws.connections.clickup = {
+        const prev = ws.connections.clickup;
+        const connection = {
           teamId,
-          listIds: opts.lists ? opts.lists.split(",").map((s) => s.trim()) : [],
+          listIds: opts.lists
+            ? opts.lists.split(",").map((s) => s.trim())
+            : (prev?.listIds ?? []),
+          sprintFolderIds: opts.sprintFolders
+            ? opts.sprintFolders.split(",").map((s) => s.trim())
+            : (prev?.sprintFolderIds ?? []),
         };
+        ws.connections.clickup = connection;
         await saveConfig(cfg);
         ok(`ClickUp connected to workspace "${ws.name}" (team ${teamId})`);
+        if (connection.sprintFolderIds.length)
+          info(
+            `sprint folder(s): ${connection.sprintFolderIds.join(", ")} — current sprint resolved at each sync`,
+          );
+        if (connection.listIds.length) info(`full lists: ${connection.listIds.join(", ")}`);
         info("API key stored in the macOS keychain — sync with: lzo tasks sync");
       },
     );

@@ -41,8 +41,13 @@ export const WorkspaceSchema = z.object({
       clickup: z
         .object({
           teamId: z.string(),
-          /** optional: restrict to specific lists (else assigned-to-me, team-wide) */
+          /** extra lists to sync IN FULL (all assignees), e.g. a shared board */
           listIds: z.array(z.string()).default([]),
+          /**
+           * Sprint FOLDERS: sprints rotate every cycle, so we store the folder
+           * and resolve the *current* sprint list (by date range) at sync time.
+           */
+          sprintFolderIds: z.array(z.string()).default([]),
         })
         .optional(),
       github: z.object({ repos: z.array(z.string()) }).optional(),

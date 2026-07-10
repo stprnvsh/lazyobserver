@@ -19,6 +19,10 @@ export interface DayReport {
     open: StoredTask[];
     done: StoredTask[];
     doneToday: StoredTask[];
+    /** tasks actually touched today: time attributed or completed */
+    workedOn: StoredTask[];
+    /** per-sprint progress for the sprints the day touched */
+    sprints: { name: string; done: number; total: number; percent: number }[];
     percentDone: number;
     /** minutes attributed per task id (events tagged or branch-matched) */
     minutesByTask: Record<string, number>;
@@ -121,6 +125,33 @@ export async function assembleReport(
     ? { title: String(dayDocs[0].title), body: String(dayDocs[0].body) }
     : null;
 
+  // what was actually picked up today: time attributed, or completed
+  const workedOn = tasks.filter(
+    (t) => (minutesByTask[t.id] ?? 0) > 0 && t.status !== "done",
+  );
+
+  // sprint progress — for sprints with dates in their name or touched today
+  const touchedSprints = new Set(
+    [...workedOn, ...doneToday].map((t) => t.sprint).filter(Boolean),
+  );
+  const currentSprints = new Set(
+    tasks.map((t) => t.sprint).filter((s) => /sprint\s*\d/i.test(s)),
+  );
+  const sprints = [...new Set([...touchedSprints, ...currentSprints])].map(
+    (name) => {
+      const inSprint = tasks.filter((t) => t.sprint === name);
+      const doneCount = inSprint.filter((t) => t.status === "done").length;
+      return {
+        name,
+        done: doneCount,
+        total: inSprint.length,
+        percent: inSprint.length
+          ? Math.round((doneCount / inSprint.length) * 100)
+          : 0,
+      };
+    },
+  );
+
   const total = open.length + done.length;
   return {
     date,
@@ -129,6 +160,8 @@ export async function assembleReport(
       open,
       done,
       doneToday,
+      workedOn,
+      sprints,
       percentDone: total ? Math.round((done.length / total) * 100) : 0,
       minutesByTask,
     },
@@ -158,25 +191,34 @@ export function renderMarkdown(r: DayReport): string {
     `**Sessions:** ${t.sessions} (${t.minutes} min) · **Tokens:** ${t.tokensIn.toLocaleString()} in / ${t.tokensOut.toLocaleString()} out · **Cost:** $${t.costUsd.toFixed(2)}`,
     `**Contribution:** ${t.userPrompts} user prompt(s) → ${t.agentActions} agent action(s)`,
     "",
-    `## Tasks (${r.tasks.percentDone}% of tracked tasks done)`,
+    `## Tasks`,
   ];
   if (r.tasks.doneToday.length) {
-    lines.push(`### Completed today`);
+    lines.push(`### Completed today (${r.tasks.doneToday.length})`);
     for (const task of r.tasks.doneToday)
       lines.push(
-        `- ✅ ${task.source_id}: ${task.title}${task.pr_url ? ` (PR: ${task.pr_url})` : ""}`,
+        `- ✅ ${task.source_id}: ${task.title}${task.pr_url ? ` (PR: ${task.pr_url})` : ""}${task.sprint ? ` _(${task.sprint})_` : ""}`,
       );
   }
-  if (r.tasks.open.length) {
-    lines.push(`### Open (${r.tasks.open.length})`);
-    for (const task of r.tasks.open.slice(0, 25)) {
+  if (r.tasks.workedOn.length) {
+    lines.push(`### Worked on today (${r.tasks.workedOn.length})`);
+    for (const task of r.tasks.workedOn) {
       const mins = r.tasks.minutesByTask[task.id];
       lines.push(
         `- [${task.status}] ${task.source_id}: ${task.title}` +
-          `${task.branch ? ` — ${task.branch}` : ""}${mins ? ` — ~${mins}m today` : ""}`,
+          `${mins ? ` — ~${mins}m` : ""}${task.branch ? ` — ${task.branch}` : ""}${task.sprint ? ` _(${task.sprint})_` : ""}`,
       );
     }
   }
+  if (!r.tasks.doneToday.length && !r.tasks.workedOn.length) {
+    lines.push(
+      "_No task-attributed work today (launch sessions with `lzo work <id>` or `lzo tasks link` to attribute time)._",
+    );
+  }
+  for (const s of r.tasks.sprints) {
+    lines.push(`- **${s.name}**: ${s.done}/${s.total} done (${s.percent}%)`);
+  }
+  lines.push(`- Open across sources: ${r.tasks.open.length} (see \`lzo tasks\`)`);
   if (r.decisions.length) {
     lines.push("", `## Decisions (${r.decisions.length})`);
     for (const d of r.decisions)

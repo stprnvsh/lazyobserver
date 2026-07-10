@@ -97,7 +97,7 @@ describe("ClickUp adapter", () => {
       });
     return respond({});
   };
-  const adapter = new ClickUpAdapter("9", [], fakeFetch, async () => "tok-123");
+  const adapter = new ClickUpAdapter("9", { fetchFn: fakeFetch, tokenFn: async () => "tok-123" });
 
   it("pulls assigned-to-me tasks with sprint + due", async () => {
     const tasks = await adapter.pull();
@@ -138,6 +138,94 @@ describe("ClickUp team discovery (API-key-only connect)", () => {
     const { discoverClickUpTeams } = await import("../src/lib/tasks/clickup.js");
     const fakeFetch: FetchFn = async () => ({ ok: false, status: 401, json: async () => ({}) });
     await expect(discoverClickUpTeams("bad", fakeFetch)).rejects.toThrow(/401.*invalid API key/);
+  });
+});
+
+describe("ClickUp pagination + sprints", () => {
+  it("paginates past ClickUp's 100/page cap (regression: sync stopped at 100)", async () => {
+    const mkTask = (i: number) => ({
+      id: `t${i}`,
+      name: `task ${i}`,
+      status: { status: "to do", type: "open" },
+      url: "u",
+    });
+    const fakeFetch: FetchFn = async (url) => ({
+      ok: true,
+      status: 200,
+      json: async () => {
+        if (url.endsWith("/user")) return { user: { id: 1 } };
+        if (url.includes("page=0")) return { tasks: Array.from({ length: 100 }, (_, i) => mkTask(i)), last_page: false };
+        if (url.includes("page=1")) return { tasks: Array.from({ length: 30 }, (_, i) => mkTask(100 + i)), last_page: true };
+        return { tasks: [] };
+      },
+    });
+    const adapter = new ClickUpAdapter("9", { fetchFn: fakeFetch, tokenFn: async () => "t" });
+    const tasks = await adapter.pull();
+    expect(tasks).toHaveLength(130);
+  });
+
+  it("pickCurrentSprintList: covering range wins, else most recently started", async () => {
+    const { pickCurrentSprintList } = await import("../src/lib/tasks/clickup.js");
+    const now = Date.parse("2026-07-10T12:00:00");
+    const lists = [
+      { id: "old", name: "Sprint 1", start_date: String(now - 30 * 86400000), due_date: String(now - 16 * 86400000) },
+      { id: "cur", name: "Sprint 2", start_date: String(now - 5 * 86400000), due_date: String(now + 9 * 86400000) },
+      { id: "next", name: "Sprint 3", start_date: String(now + 10 * 86400000), due_date: String(now + 24 * 86400000) },
+    ];
+    expect(pickCurrentSprintList(lists, now)!.id).toBe("cur");
+    // gap between sprints -> the one that started most recently
+    expect(pickCurrentSprintList([lists[0], lists[2]], now)!.id).toBe("old");
+    // no dated lists -> last list
+    expect(pickCurrentSprintList([{ id: "a", name: "A" }, { id: "b", name: "B" }], now)!.id).toBe("b");
+    expect(pickCurrentSprintList([], now)).toBeNull();
+  });
+
+  it("sprint folders resolve the current list and tag tasks with the sprint name", async () => {
+    const now = Date.parse("2026-07-10T12:00:00");
+    const fakeFetch: FetchFn = async (url) => ({
+      ok: true,
+      status: 200,
+      json: async () => {
+        if (url.endsWith("/user")) return { user: { id: 1 } };
+        if (url.includes("/team/9/task") && url.includes("assignees[]="))
+          // sp1 is ALSO assigned to me — ClickUp reports its PRIMARY (home)
+          // list here; the sprint tag must still win in the final result
+          return {
+            tasks: [
+              { id: "sp1", name: "sprint task", status: { status: "in progress", type: "custom" }, url: "u", list: { id: "PB", name: "Product Backlog" } },
+            ],
+            last_page: true,
+          };
+        if (url.includes("/folder/F1/list"))
+          return {
+            lists: [
+              { id: "S11", name: "Sprint 11", start_date: String(now - 20 * 86400000), due_date: String(now - 7 * 86400000) },
+              { id: "S12", name: "Sprint 12 (7/6 - 7/19)", start_date: String(now - 4 * 86400000), due_date: String(now + 9 * 86400000) },
+            ],
+          };
+        if (url.includes("list_ids[]=S12") && url.includes("include_timl=true"))
+          return {
+            tasks: [
+              { id: "sp1", name: "sprint task", status: { status: "in progress", type: "custom" }, url: "u" },
+            ],
+            last_page: true,
+          };
+        return { tasks: [] };
+      },
+    });
+    const adapter = new ClickUpAdapter("9", {
+      sprintFolderIds: ["F1"],
+      fetchFn: fakeFetch,
+      tokenFn: async () => "t",
+      now: () => now,
+    });
+    const tasks = await adapter.pull();
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0]).toMatchObject({
+      id: "clickup:sp1",
+      sprint: "Sprint 12 (7/6 - 7/19)",
+      status: "in_progress",
+    });
   });
 });
 

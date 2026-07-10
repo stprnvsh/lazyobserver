@@ -27,7 +27,11 @@ export async function buildAdapters(): Promise<Adapters> {
   const ws = cfg.workspaces.find((w) => w.name === cfg.currentWorkspace);
   const out: Adapters = {};
   const cu = ws?.connections.clickup;
-  if (cu) out.clickup = new ClickUpAdapter(cu.teamId, cu.listIds);
+  if (cu)
+    out.clickup = new ClickUpAdapter(cu.teamId, {
+      listIds: cu.listIds,
+      sprintFolderIds: cu.sprintFolderIds,
+    });
   const gh = ws?.connections.github;
   if (gh && gh.repos.length > 0) out.github = new GitHubAdapter(gh.repos);
   return out;
