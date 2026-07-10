@@ -15,6 +15,7 @@ import { importClaudeMemory } from "./commands/importcmd.js";
 import { initCommand } from "./commands/init.js";
 import { mcpCommand } from "./commands/mcp.js";
 import { profileCommand } from "./commands/profile.js";
+import { redactionCommand } from "./commands/redaction.js";
 import { reportCommand, webCommand } from "./commands/report.js";
 import { statusCommand } from "./commands/status.js";
 import { connectCommand, tasksCommand, workCommand } from "./commands/tasks.js";
@@ -95,6 +96,7 @@ program.addCommand(mcpCommand());
 program.addCommand(connectCommand());
 program.addCommand(tasksCommand());
 program.addCommand(workCommand());
+program.addCommand(redactionCommand());
 
 program.parseAsync().catch((err: unknown) => {
   fail((err as Error).message);

@@ -212,6 +212,37 @@ export async function addRepoToWorkspace(
   await saveConfig(cfg);
 }
 
+export async function removeRepoFromWorkspace(
+  workspace: string,
+  repoPath: string,
+): Promise<void> {
+  const cfg = await loadConfig();
+  const ws = cfg.workspaces.find((w) => w.name === workspace);
+  if (!ws) throw new Error(`Workspace "${workspace}" not found.`);
+  const normalized = normalizeRepoPath(repoPath);
+  const before = ws.repos.length;
+  ws.repos = ws.repos.filter((r) => r !== normalized);
+  if (ws.repos.length === before) {
+    throw new Error(`${normalized} is not in workspace "${workspace}".`);
+  }
+  await saveConfig(cfg);
+}
+
+/** Pin (or with `null`, unpin) a profile on a workspace. */
+export async function pinProfile(
+  workspace: string,
+  profile: string | null,
+): Promise<void> {
+  const cfg = await loadConfig();
+  const ws = cfg.workspaces.find((w) => w.name === workspace);
+  if (!ws) throw new Error(`Workspace "${workspace}" not found.`);
+  if (profile !== null && !cfg.profiles.some((p) => p.name === profile)) {
+    throw new Error(`Unknown profile "${profile}".`);
+  }
+  ws.profile = profile ?? undefined;
+  await saveConfig(cfg);
+}
+
 export async function setCurrentWorkspace(name: string): Promise<void> {
   const cfg = await loadConfig();
   if (!cfg.workspaces.some((w) => w.name === name)) {

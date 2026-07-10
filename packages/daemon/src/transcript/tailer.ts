@@ -13,7 +13,14 @@
 import { open, readdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { chunkText, normalizeRepoPath, paths, workspacesForRepo, type Config } from "@lazyobserver/core";
+import {
+  chunkText,
+  normalizeRepoPath,
+  paths,
+  redactSecrets,
+  workspacesForRepo,
+  type Config,
+} from "@lazyobserver/core";
 
 import type { Writer } from "../ingest/writer.js";
 import { parseTranscriptLine } from "./parser.js";
@@ -149,8 +156,34 @@ export class TranscriptTailer {
         });
       }
 
+      const redactionOn = cfg.settings.redaction.enabled;
       for (const m of messages) {
         const repo = meta?.cwd ? normalizeRepoPath(meta.cwd) : "";
+        // queued mid-turn prompts fire no hook — synthesize their prompt event
+        // so the timeline and user-prompt counts stay complete
+        if (m.queuedPrompt && m.blockIx === 0) {
+          const text = redactionOn ? redactSecrets(m.text).text : m.text;
+          this.writer.queueEvent({
+            id: `att-${m.uuid}`,
+            ts: m.ts,
+            session_id: m.sessionId,
+            surface: meta?.surface ?? "",
+            actor: "user",
+            kind: "prompt",
+            repo,
+            workspace: repo
+              ? workspacesForRepo(cfg, repo)
+                  .map((w) => w.name)
+                  .join(",")
+              : "",
+            branch: meta?.gitBranch ?? "",
+            task_id: "",
+            payload: JSON.stringify({ prompt: text.slice(0, 6000), queued: true }),
+            tokens_in: 0,
+            tokens_out: 0,
+            cost_usd: 0,
+          });
+        }
         for (const chunk of chunkText(m.text)) {
           this.writer.queueMessage({
             id: `${m.uuid}#${m.blockIx}#${chunk.seq}`,
@@ -158,7 +191,7 @@ export class TranscriptTailer {
             ts: m.ts,
             role: m.role,
             seq: chunk.seq,
-            content: chunk.text,
+            content: redactionOn ? redactSecrets(chunk.text).text : chunk.text,
             repo,
             profile,
           });

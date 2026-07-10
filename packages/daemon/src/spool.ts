@@ -13,6 +13,8 @@ import {
   loadConfig,
   normalizeRepoPath,
   paths,
+  redactRecord,
+  redactSecrets,
   workspacesForRepo,
   type Config,
 } from "@lazyobserver/core";
@@ -161,7 +163,9 @@ export function toEventRow(
     workspace: workspaces.map((w) => w.name).join(",") || "",
     branch: "",
     task_id: String(evt.envelope.task ?? ""),
-    payload: capPayload(payload),
+    payload: cfg.settings.redaction.enabled
+      ? redactSecrets(capPayload(payload)).text
+      : capPayload(payload),
     tokens_in: 0,
     tokens_out: 0,
     cost_usd: 0,
@@ -178,6 +182,9 @@ export async function processSpoolOnce(writer: Writer): Promise<number> {
     return 0;
   }
 
+  const cfgForRedaction = await loadConfig();
+  const redactionOn = cfgForRedaction.settings.redaction.enabled;
+
   // memory-plane writes queued by MCP / import / eod (single-writer protocol)
   const memFiles = entries.filter(isMemFile);
   let memIngested = 0;
@@ -186,10 +193,11 @@ export async function processSpoolOnce(writer: Writer): Promise<number> {
       const content = await readFile(path.join(dir, file), "utf8");
       const write = JSON.parse(content) as MemWrite;
       if (write.table && write.row && typeof write.row.id === "string") {
+        const row = redactionOn ? redactRecord(write.row).row : write.row;
         await writer.upsertMemoryRow(
           write.table,
-          write.row,
-          embeddingText(write.table, write.row),
+          row,
+          embeddingText(write.table, row),
         );
       }
       await unlink(path.join(dir, file)).catch(() => undefined);

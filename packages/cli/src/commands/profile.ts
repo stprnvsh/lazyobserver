@@ -24,14 +24,22 @@ export function profileCommand(): Command {
 
   cmd
     .command("list")
-    .description("list profiles")
+    .description("list profiles (and which workspaces pin them)")
     .action(async () => {
       const cfg = await loadConfig();
       if (cfg.profiles.length === 0) {
         info("no profiles yet — lzo profile add work --config-dir ~/.claude");
         return;
       }
-      for (const p of cfg.profiles) info(`${p.name} → ${p.claudeConfigDir}`);
+      for (const p of cfg.profiles) {
+        const pinnedBy = cfg.workspaces
+          .filter((w) => w.profile === p.name)
+          .map((w) => w.name);
+        info(
+          `${p.name} → ${p.claudeConfigDir}` +
+            (pinnedBy.length ? `  (pinned by: ${pinnedBy.join(", ")})` : ""),
+        );
+      }
     });
 
   cmd

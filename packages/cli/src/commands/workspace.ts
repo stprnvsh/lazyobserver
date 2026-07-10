@@ -9,11 +9,13 @@ import {
   addRepoToWorkspace,
   addWorkspace,
   loadConfig,
+  pinProfile,
+  removeRepoFromWorkspace,
   removeWorkspace,
   setCurrentWorkspace,
 } from "@lazyobserver/core";
 
-import { info, ok } from "../ui.js";
+import { heading, info, ok } from "../ui.js";
 
 export function workspaceCommand(): Command {
   const cmd = new Command("workspace").description(
@@ -72,6 +74,54 @@ export function workspaceCommand(): Command {
       ok(`current workspace: ${name}`);
     });
 
+  cmd
+    .command("show <name>")
+    .description("full workspace detail: repos, profile, task connections")
+    .action(async (name: string) => {
+      const cfg = await loadConfig();
+      const w = cfg.workspaces.find((x) => x.name === name);
+      if (!w) throw new Error(`Workspace "${name}" not found.`);
+      heading(w.name + (cfg.currentWorkspace === w.name ? " (current)" : ""));
+      info(`profile: ${w.profile ?? "(none — sessions use the default account)"}`);
+      heading("repos");
+      if (w.repos.length === 0) info("(none)");
+      for (const r of w.repos) info(r);
+      heading("connections");
+      const cu = w.connections.clickup;
+      if (cu) {
+        info(
+          `clickup: team ${cu.teamId}` +
+            (cu.me ? ` — me: ${cu.me.username}` : "") +
+            (cu.sprintFolderIds.length
+              ? ` — sprint folder(s): ${cu.sprintFolderIds.join(", ")}`
+              : "") +
+            (cu.listIds.length ? ` — lists: ${cu.listIds.join(", ")}` : ""),
+        );
+      }
+      const gh = w.connections.github;
+      if (gh)
+        info(
+          `github: ${gh.repos.join(", ")}${gh.me ? ` — me: ${gh.me.login}` : ""}`,
+        );
+      if (!cu && !gh) info("(none — lzo connect clickup|github)");
+    });
+
+  cmd
+    .command("pin <workspace> <profile>")
+    .description("pin a profile (sessions in this workspace use that account)")
+    .action(async (workspace: string, profile: string) => {
+      await pinProfile(workspace, profile);
+      ok(`workspace "${workspace}" now pinned to profile "${profile}"`);
+    });
+
+  cmd
+    .command("unpin <workspace>")
+    .description("remove the profile pin")
+    .action(async (workspace: string) => {
+      await pinProfile(workspace, null);
+      ok(`workspace "${workspace}" unpinned`);
+    });
+
   const repo = new Command("repo").description("manage a workspace's repos");
   repo
     .command("add <workspace> <path>")
@@ -79,6 +129,13 @@ export function workspaceCommand(): Command {
     .action(async (workspace: string, p: string) => {
       await addRepoToWorkspace(workspace, p);
       ok(`added ${p} → ${workspace}`);
+    });
+  repo
+    .command("remove <workspace> <path>")
+    .description("remove a repo folder from a workspace (data is untouched)")
+    .action(async (workspace: string, p: string) => {
+      await removeRepoFromWorkspace(workspace, p);
+      ok(`removed ${p} from ${workspace}`);
     });
   cmd.addCommand(repo);
 

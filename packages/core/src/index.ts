@@ -10,6 +10,8 @@ export {
   addWorkspace,
   removeWorkspace,
   addRepoToWorkspace,
+  removeRepoFromWorkspace,
+  pinProfile,
   setCurrentWorkspace,
   workspacesForRepo,
   normalizeRepoPath,
@@ -40,3 +42,4 @@ export {
 } from "./projection.js";
 export { buildSessionStartBrief } from "./brief.js";
 export { getSecret, setSecret } from "./secrets.js";
+export { redactSecrets, redactRecord, type RedactionResult } from "./redact.js";
