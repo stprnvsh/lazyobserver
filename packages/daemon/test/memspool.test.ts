@@ -96,6 +96,37 @@ describe("memory spool writes", () => {
     expect(m2[0].status).toBe("active");
   });
 
+  it("events routed through the mem spool land in the events table (backfill path)", async () => {
+    await queueMemWrite({
+      table: TABLES.events,
+      row: {
+        id: "att-backfill-1",
+        ts: 5000,
+        session_id: "sess-bf",
+        surface: "vscode",
+        actor: "user",
+        kind: "prompt",
+        repo: "/r/x",
+        workspace: "",
+        branch: "",
+        task_id: "",
+        payload: '{"prompt":"recovered mid-turn ask","queued":true}',
+        tokens_in: 0,
+        tokens_out: 0,
+        cost_usd: 0,
+      },
+    });
+    const n = await processSpoolOnce(writer);
+    expect(n).toBeGreaterThanOrEqual(1);
+    const rows = await (await store.table(TABLES.events))
+      .query()
+      .where("id = 'att-backfill-1'")
+      .toArray();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].kind).toBe("prompt");
+    expect(String(rows[0].payload)).toContain("recovered mid-turn ask");
+  });
+
   it("daily entries and decisions land in their tables", async () => {
     await queueMemWrite({
       table: TABLES.dailyMemory,

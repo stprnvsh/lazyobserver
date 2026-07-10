@@ -194,11 +194,16 @@ export async function processSpoolOnce(writer: Writer): Promise<number> {
       const write = JSON.parse(content) as MemWrite;
       if (write.table && write.row && typeof write.row.id === "string") {
         const row = redactionOn ? redactRecord(write.row).row : write.row;
-        await writer.upsertMemoryRow(
-          write.table,
-          row,
-          embeddingText(write.table, row),
-        );
+        if (write.table === "events") {
+          // events carry no vector — go through the batched event queue
+          writer.queueEvent(row as unknown as EventRow);
+        } else {
+          await writer.upsertMemoryRow(
+            write.table,
+            row,
+            embeddingText(write.table, row),
+          );
+        }
       }
       await unlink(path.join(dir, file)).catch(() => undefined);
       memIngested++;
@@ -210,7 +215,10 @@ export async function processSpoolOnce(writer: Writer): Promise<number> {
   const files = entries.filter(
     (f) => f.startsWith("evt-") && f.endsWith(".json"),
   );
-  if (files.length === 0) return memIngested;
+  if (files.length === 0) {
+    if (memIngested > 0) await writer.flush(); // events routed via mem files
+    return memIngested;
+  }
 
   const cfg = await loadConfig();
   const ingested: string[] = [];

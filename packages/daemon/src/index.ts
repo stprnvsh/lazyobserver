@@ -21,6 +21,7 @@ export {
   type MemWrite,
   type MemTable,
 } from "./memwrite.js";
+export { parseTranscriptLine, type ParsedMessage } from "./transcript/parser.js";
 
 const arg = process.argv[2];
 if (arg === "run") {

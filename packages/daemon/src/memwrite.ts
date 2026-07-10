@@ -20,7 +20,9 @@ export type MemTable =
   | typeof TABLES.codebaseMemory
   | typeof TABLES.dailyMemory
   | typeof TABLES.decisions
-  | typeof TABLES.tasks;
+  | typeof TABLES.tasks
+  | typeof TABLES.events
+  | typeof TABLES.messages;
 
 export interface MemWrite {
   table: MemTable;
@@ -49,6 +51,9 @@ export function embeddingText(table: MemTable, row: Record<string, unknown>): st
   }
   if (table === TABLES.tasks) {
     return `${String(row.title ?? "")}\n${String(row.description ?? "")}`.trim();
+  }
+  if (table === TABLES.messages) {
+    return String(row.content ?? "").trim();
   }
   // decisions
   return `${String(row.context ?? "")}\n${String(row.choice ?? "")}\n${String(row.rationale ?? "")}`.trim();

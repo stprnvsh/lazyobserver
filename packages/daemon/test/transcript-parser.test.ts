@@ -128,6 +128,19 @@ describe("parseTranscriptLine", () => {
     expect(meta).toMatchObject({ cwd: base.cwd, surface: "vscode" });
   });
 
+  it("ignores IDE context injections riding the queued channel", () => {
+    const line = JSON.stringify({
+      ...base,
+      type: "attachment",
+      uuid: "att-uuid-3",
+      attachment: {
+        type: "queued_command",
+        prompt: [{ type: "text", text: "<ide_opened_file>The user opened x</ide_opened_file>" }],
+      },
+    });
+    expect(parseTranscriptLine(line).messages).toHaveLength(0);
+  });
+
   it("ignores non-queued attachment lines (file snapshots etc.)", () => {
     const line = JSON.stringify({
       ...base,

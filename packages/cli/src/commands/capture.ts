@@ -56,5 +56,22 @@ export function captureCommand(): Command {
       }
     });
 
+  cmd
+    .command("backfill-prompts")
+    .option("--days <n>", "how many days of transcripts to rescan", "3")
+    .description(
+      "recover MID-TURN prompts from recent transcripts (idempotent — safe to re-run)",
+    )
+    .action(async (opts: { days: string }) => {
+      const { backfillPrompts } = await import("../lib/backfill.js");
+      const r = await backfillPrompts(Number(opts.days) || 3);
+      ok(
+        `scanned ${r.filesScanned} transcript file(s) — recovered ${r.promptsRecovered} mid-turn prompt(s)`,
+      );
+      info(
+        `queued ${r.eventsQueued} event(s) + ${r.messagesQueued} message chunk(s) — the daemon commits them within ~2s`,
+      );
+    });
+
   return cmd;
 }

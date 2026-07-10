@@ -82,6 +82,9 @@ export function parseTranscriptLine(line: string): ParsedLine {
         typeof (block as { text?: string }).text === "string"
       ) {
         const text = (block as { text: string }).text.trim();
+        // IDE context injections (<ide_opened_file>, <ide_selection>, ...)
+        // ride the same queued_command channel but are NOT user prompts
+        if (/^<ide_[a-z_]+>/i.test(text)) return;
         if (text)
           messages.push({
             uuid: uuid0,
