@@ -54,31 +54,51 @@ export function connectCommand(): Command {
 
   cmd
     .command("clickup")
-    .requiredOption("--team <id>", "ClickUp team (workspace) id")
+    .option("--team <id>", "ClickUp team (workspace) id — omit to auto-discover from the API key")
     .option("--lists <ids>", "comma-separated list ids (else assigned-to-me)")
-    .option("--token <token>", "personal API token (omit to be prompted)")
-    .description("connect ClickUp (token stays in the local keychain)")
+    .option("--token <token>", "personal API key (omit to be prompted)")
+    .description("connect ClickUp with just an API key (kept in the local keychain)")
     .action(
-      async (opts: { team: string; lists?: string; token?: string }) => {
+      async (opts: { team?: string; lists?: string; token?: string }) => {
         let token = opts.token;
         if (!token) {
           const rl = createInterface({ input: process.stdin, output: process.stdout });
-          token = (await rl.question("ClickUp personal API token: ")).trim();
+          token = (await rl.question("ClickUp personal API key: ")).trim();
           rl.close();
         }
-        if (!token) throw new Error("no token provided");
-        await setSecret("clickup", token);
+        if (!token) throw new Error("no API key provided");
 
+        // resolve the team: explicit flag, or discover from the key
+        let teamId = opts.team;
+        if (!teamId) {
+          const { discoverClickUpTeams } = await import("../lib/tasks/clickup.js");
+          const teams = await discoverClickUpTeams(token);
+          if (teams.length === 0) throw new Error("API key sees no ClickUp workspaces");
+          if (teams.length === 1) {
+            teamId = teams[0].id;
+            info(`workspace auto-discovered: ${teams[0].name} (${teamId})`);
+          } else {
+            info("this key can see several workspaces:");
+            for (const t of teams) info(`  ${t.id}  ${t.name}`);
+            const rl = createInterface({ input: process.stdin, output: process.stdout });
+            teamId = (await rl.question("team id to use: ")).trim();
+            rl.close();
+            if (!teams.some((t) => t.id === teamId))
+              throw new Error(`"${teamId}" is not one of the listed team ids`);
+          }
+        }
+
+        await setSecret("clickup", token);
         const cfg = await loadConfig();
         const ws = cfg.workspaces.find((w) => w.name === cfg.currentWorkspace);
         if (!ws) throw new Error("no current workspace — lzo workspace use <name>");
         ws.connections.clickup = {
-          teamId: opts.team,
+          teamId,
           listIds: opts.lists ? opts.lists.split(",").map((s) => s.trim()) : [],
         };
         await saveConfig(cfg);
-        ok(`ClickUp connected to workspace "${ws.name}" (team ${opts.team})`);
-        info("token stored in the macOS keychain — sync with: lzo tasks sync");
+        ok(`ClickUp connected to workspace "${ws.name}" (team ${teamId})`);
+        info("API key stored in the macOS keychain — sync with: lzo tasks sync");
       },
     );
 

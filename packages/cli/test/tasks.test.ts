@@ -122,6 +122,25 @@ describe("ClickUp adapter", () => {
   });
 });
 
+describe("ClickUp team discovery (API-key-only connect)", () => {
+  it("lists the teams a key can see", async () => {
+    const { discoverClickUpTeams } = await import("../src/lib/tasks/clickup.js");
+    const fakeFetch: FetchFn = async (url) => ({
+      ok: url.endsWith("/team"),
+      status: url.endsWith("/team") ? 200 : 404,
+      json: async () => ({ teams: [{ id: 9007, name: "Transcality" }] }),
+    });
+    const teams = await discoverClickUpTeams("pk_x", fakeFetch);
+    expect(teams).toEqual([{ id: "9007", name: "Transcality" }]);
+  });
+
+  it("surfaces invalid keys clearly", async () => {
+    const { discoverClickUpTeams } = await import("../src/lib/tasks/clickup.js");
+    const fakeFetch: FetchFn = async () => ({ ok: false, status: 401, json: async () => ({}) });
+    await expect(discoverClickUpTeams("bad", fakeFetch)).rejects.toThrow(/401.*invalid API key/);
+  });
+});
+
 describe("GitHub adapter", () => {
   const ghCalls: string[][] = [];
   const fakeGh = async (args: string[]): Promise<string> => {

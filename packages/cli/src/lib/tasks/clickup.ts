@@ -17,6 +17,26 @@ export type FetchFn = (
   init?: { method?: string; headers?: Record<string, string>; body?: string },
 ) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>;
 
+/**
+ * Discover the teams (workspaces) a token can see — lets `lzo connect
+ * clickup` work with JUST an API key, no team id needed up front.
+ */
+export async function discoverClickUpTeams(
+  token: string,
+  fetchFn: FetchFn = fetch as unknown as FetchFn,
+): Promise<{ id: string; name: string }[]> {
+  const res = await fetchFn(`${BASE}/team`, {
+    headers: { Authorization: token },
+  });
+  if (!res.ok) {
+    throw new Error(
+      `ClickUp /team -> ${res.status}${res.status === 401 ? " (invalid API key?)" : ""}`,
+    );
+  }
+  const data = (await res.json()) as { teams?: { id: string | number; name: string }[] };
+  return (data.teams ?? []).map((t) => ({ id: String(t.id), name: t.name }));
+}
+
 interface CuStatus {
   status: string;
   type?: string;
